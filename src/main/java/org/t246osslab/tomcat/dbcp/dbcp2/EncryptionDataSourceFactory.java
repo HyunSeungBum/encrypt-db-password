@@ -2,9 +2,11 @@ package org.t246osslab.tomcat.dbcp.dbcp2;
 
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.ResourceBundle;
 
 import javax.crypto.BadPaddingException;
@@ -23,6 +25,11 @@ import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.dbcp.dbcp2.BasicDataSourceFactory;
 
 public class EncryptionDataSourceFactory extends BasicDataSourceFactory {
+	
+    private static final String KEY = ">ny;GG9`m+?%W}~:";
+    private static final String ALGORITHM = "AES";
+    
+    private static final List<String> prop = Arrays.asList("url", "username", "password");
 
     private static final Log log = LogFactory.getLog(EncryptionDataSourceFactory.class);
 
@@ -51,16 +58,28 @@ public class EncryptionDataSourceFactory extends BasicDataSourceFactory {
         try {
             if (obj instanceof Reference) {
                 Reference ref = (Reference) obj;
-                StringRefAddr passwordRefAddr = (StringRefAddr) ref.get(PROP_PASSWORD);
-                if (passwordRefAddr != null) {
-                    String encryptedPwd = (String) passwordRefAddr.getContent();
-                    String cleartextPwd = decrypt(encryptedPwd);
-                    int index = find(PROP_PASSWORD, ref);
-                    if (index >= 0) {
-                        ref.remove(index);
-                        ref.add(index, new StringRefAddr(PROP_PASSWORD, cleartextPwd));
-                    }
-                }
+                
+                prop.forEach(p -> {
+                		StringRefAddr refAddr = (StringRefAddr) ref.get(p);
+                		if (refAddr != null) {
+                			String encryptedPwd = (String) refAddr.getContent();
+						try {
+							String cleartextPwd = decrypt(encryptedPwd);
+							int index;
+							
+							index= find(p, ref);
+                				if (index >= 0) {
+                					ref.remove(index);
+                					ref.add(index, new StringRefAddr(p, cleartextPwd));
+                				}
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} 
+                		}
+       
+                });
+                
             }
         } catch (Exception e) {
             log.error("Failed to decrypt password. Please check DataSource definition.");
@@ -94,9 +113,4 @@ public class EncryptionDataSourceFactory extends BasicDataSourceFactory {
         cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY.getBytes(), ALGORITHM));
         return new String(cipher.doFinal(Base64.getDecoder().decode(encryptSource.getBytes())));
     }
-
-    private static final String KEY = "change_this_key!";
-    private static final String ALGORITHM = "AES";
-    
-    private static final String PROP_PASSWORD = "password"; // Don't change this value
 }
